@@ -46,7 +46,8 @@ contains
                    ntbc1,ntbc2,ntoc1,ntoc2,                             &
                    ntss1,ntss2,ntss3,ntss4,ntss5,                       &
                    ntdust1,ntdust2,ntdust3,ntdust4,ntdust5,ntpp10,      &
-                   gq0,abem,lmk,                                        &
+                   gq0,abem,                                            &
+!                   cplchp_rad_opt,lmk,faersw_cpl,                       &
                    chem_opt_in,aer_ra_feedback_in,aer_ra_frq_in,        &
                    errmsg,errflg)
 
@@ -67,8 +68,10 @@ contains
     real(kind_phys), dimension(im,kme), intent(in) :: ph3d
     real(kind_phys), dimension(im,kte), intent(in) :: prl3d, tk3d, spechum
     real(kind_phys), dimension(im,kte,ntrac), intent(inout) :: gq0
-    real(kind_phys), dimension(im,7        ), intent(inout) :: abem
-    integer,         intent(in) :: lmk
+    real(kind_phys), dimension(im,12        ), intent(inout) :: abem
+!    integer,         intent(in) :: lmk
+!    real(kind_phys), dimension(im, lmk, 14, 3),intent(inout) :: faersw_cpl
+!    logical, intent(in) :: cplchp_rad_opt
     integer,        intent(in) :: chem_opt_in
     integer,        intent(in) :: aer_ra_feedback_in,aer_ra_frq_in
     character(len=*), intent(out) :: errmsg
@@ -85,6 +88,7 @@ contains
 !>- optical variables
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme) :: relhum
     real(kind_phys), dimension(ims:im,         jms:jme) :: aod
+    real(kind_phys), dimension(ims:im,         jms:jme,5) :: aerodp ! dust, soot, waso, suso, ssam
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:nbands) :: extt
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:nbands) :: ssca
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:nbands) :: asympar
@@ -188,11 +192,19 @@ contains
         case (2)
           call aero_opt('sw',dz8w,chem                                  &
                    ,rri,relhum,aod                                      &
-!                  ,extt,ssca,asympar                                   &
                    ,extt,ssca,asympar,num_chem                          &
                    ,ids,ide, jds,jde, kds,kde                           &
                    ,ims,ime, jms,jme, kms,kme                           &
                    ,its,ite, jts,jte, kts,kte)
+          store_arrays = .true.
+        case (3)
+          call aero_opt_new('sw',dz8w,chem                              &
+                   ,rri,relhum                                          &
+                   ,extt,ssca,asympar,num_chem                          &
+                   ,ids,ide, jds,jde, kds,kde                           &
+                   ,ims,ime, jms,jme, kms,kme                           &
+                   ,its,ite, jts,jte, kts,kte                           &
+                   ,aod,aerodp)
           store_arrays = .true.
         case default
           ! -- no feedback
@@ -211,8 +223,25 @@ contains
       end if
     endif
 
-    abem(:,7)=aod2d(:)
+    abem(its:ite,7)=aod2d(its:ite)
+    abem(:,8)=aerodp(:,1,1)
+    abem(:,9)=aerodp(:,1,2)
+    abem(:,10)=aerodp(:,1,3)
+    abem(:,11)=aerodp(:,1,4)
+    abem(:,12)=aerodp(:,1,5)
 
+!>---- feedback to radiation
+!    if (cplchp_rad_opt) then
+!     do nv = 1, nbands
+!      do k = kts, kte
+!       do i = its, ite
+!        faersw_cpl(i,k,nv,1) =  ext_cof(i,k,nv)
+!        faersw_cpl(i,k,nv,2) =  sscal  (i,k,nv)
+!        faersw_cpl(i,k,nv,3) =  asymp  (i,k,nv)
+!       end do
+!      end do
+!     end do
+!    endif
 
 !
    end subroutine gsd_chem_rad_wrapper_run
@@ -307,8 +336,8 @@ contains
             moist(i,k,j,3)=gq0(ip,kkp,p_atm_cldq)
             if(moist(i,k,j,3) < 1.e-8)moist(i,k,j,3)=0.
           endif
-          relhum(i,k,j) = .95
-          relhum(i,k,j) = MIN( .95, moist(i,k,j,1) / &
+          relhum(i,k,j) = .99
+          relhum(i,k,j) = MIN( .99, moist(i,k,j,1) / &
             (3.80*exp(17.27*(t_phy(i,k,j)-273.)/ &
             (t_phy(i,k,j)-36.))/(.01*p_phy(i,k,j))))
           relhum(i,k,j)=max(0.1,relhum(i,k,j))

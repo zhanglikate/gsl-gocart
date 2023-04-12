@@ -71,7 +71,7 @@ contains
     real(kind_phys), dimension(im,kte), intent(in) :: phl3d, prl3d, tk3d,        &
                 us3d, vs3d, spechum, w
     real(kind_phys), dimension(im,kte,ntrac), intent(inout) :: gq0, qgrs
-    real(kind_phys), dimension(im,7        ), intent(inout) :: abem
+    real(kind_phys), dimension(im,12        ), intent(inout) :: abem
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:num_ebu), intent(inout) :: ebu
     integer,        intent(in) :: biomass_burn_opt_in, plumerise_flag_in, plumerisefire_frq_in
     character(len=*), intent(out) :: errmsg

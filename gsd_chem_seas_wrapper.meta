@@ -68,6 +68,22 @@
   dimensions = (horizontal_loop_extent)
   type = integer
   intent = in
+[oceanfrac]
+  standard_name = sea_area_fraction
+  long_name = fraction of horizontal grid area occupied by ocean
+  units = frac
+  dimensions = (horizontal_loop_extent)
+  type = real
+  kind = kind_phys
+  intent = in
+[fice]
+  standard_name = sea_ice_area_fraction_of_sea_area_fraction
+  long_name = ice fraction over open water
+  units = frac
+  dimensions = (horizontal_loop_extent)
+  type = real
+  kind = kind_phys
+  intent = in
 [u10m]
   standard_name = x_wind_at_10m
   long_name = 10 meter u wind speed
@@ -254,11 +270,26 @@
   kind = kind_phys
   intent = inout
 [seas_opt_in]
+  standard_name = gsd_chem_seas_emis_scheme_sst
+  long_name = gsd chem seas emis scheme sst
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+[sstemisFlag]
   standard_name = gsd_chem_sea_salt_opt
   long_name = gsd chem sea salt emission option
   units = index
   dimensions = ()
   type = integer
+  intent = in
+[seas_emis_scale]
+  standard_name = gsd_chem_seas_emis_scale
+  long_name = gsd chem seas emis scale
+  units = none
+  dimensions = (5)
+  type = real
+  kind = kind_phys
   intent = in
 [emis_amp_seas]
   standard_name = sea_spray_emissions_perturbation_amplitude

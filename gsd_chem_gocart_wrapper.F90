@@ -452,20 +452,14 @@ contains
                 ip = i - its + 1
                 if (chem_opt == CHEM_OPT_GOCART) then
                   do n=1,num_chem
-                    chem(i,k,j,n)=1.e-20
+                    chem(i,k,j,n)=1.e-30
                   enddo
                 endif  ! chem_opt==300
-                chem(i,k,j,p_so2)=5.e-10
-                chem(i,k,j,p_sulf)=3.e-10
-                if ((chem_opt >= CHEM_OPT_GOCART) .and. (chem_opt < CHEM_OPT_MAX)) then
-                  chem(i,k,j,p_msa)=0.1e-10
-                  chem(i,k,j,p_dms)=0.1e-10
-                  chem(i,k,j,p_bc1)=0.1e-30
-                  chem(i,k,j,p_bc2)=0.1e-30
-                  chem(i,k,j,p_oc1)=0.1e-30
-                  chem(i,k,j,p_oc2)=0.1e-30
-                  chem(i,k,j,p_p25)=0.1e-30 !lzhang
-                  chem(i,k,j,p_p10)=0.1e-30 !lzhang
+                if ((chem_opt > CHEM_OPT_GOCART) .and. (chem_opt < CHEM_OPT_MAX)) then
+                  chem(i,k,j,p_so2)=5.e-10
+                  chem(i,k,j,p_sulf)=3.e-10
+                  chem(i,k,j,p_msa)=1.e-10
+                  chem(i,k,j,p_dms)=1.e-10
                 endif !chem_opt >= 300 .and. chem_opt <  500
 
 !                if ((chem_opt == CHEM_OPT_GOCART_RACM) .or. (chem_opt == CHEM_OPT_RACM_SOA_VBS)) then  !added o3 background !lzhang

@@ -173,13 +173,6 @@ contains
         ims,ime, jms,jme, kms,kme,                                       &
         its,ite, jts,jte, kts,kte)
 
-     !if(ktau==1)then
-      !print*,'hli dust ktau',ktau
-      !print*,'hli dust5 bf',maxval(gq0(:,:,ntdust1  )),maxval(chem(:,:,1,p_dust_5))
-      !do i=its,ite
-      !print*,'hli dust5 bf i',i,chem(i,110:kme,1,p_dust_5)
-      !enddo
-     !endif
 
     !-- compute dust
     !store_arrays = .false.
@@ -199,7 +192,7 @@ contains
       case (DUST_OPT_FENGSHA)
        dust_alpha    = dust_alpha_in  !fengsha_alpha
        dust_gamma    = dust_gamma_in  !fengsha_gamma
-       call gocart_dust_fengsha_driver(dt,ktau,chem,rho_phy,smois,p8w,ssm,   &
+       call gocart_dust_fengsha_driver(dt,chem,rho_phy,smois,p8w,ssm,   &
             isltyp,vegfrac,snowh,xland,dxy,g,emis_dust,ust,znt,         &
             clayf,sandf,rdrag,uthr,                                     &
             num_emis_dust,num_moist,num_chem,nsoil,                     &
@@ -227,16 +220,6 @@ contains
     end select
 
 
-     !factor3=maxval(chem(:,:,1,p_dust_5))
-     !if(factor3.gt.1.e+10)then
-     !if(ktau==1)then
-      !print*,'hli dust ktau',ktau
-      !print*,'hli dust5',maxval(gq0(:,:,ntdust1  )),maxval(chem(:,:,1,p_dust_5))
-      !do i=its,ite
-      !print*,'hli dust5 i',i,chem(i,110:kme,1,p_dust_5)
-      !enddo
-     !endif
-    !chem(:,110:kme,1,p_dust_5)=epsilc  !lzhang
 
     ! -- put chem stuff back into tracer array
     do k=kts,kte

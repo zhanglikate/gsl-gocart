@@ -1,5 +1,3 @@
-!GODDARD GODDARD GODDARD GODDARD GODDARD
-!GODDARD GODDARD GODDARD GODDARD GODDARD 
  module opt_gocart_mod
 
  use gsd_chem_constants ,        only : kind_chem
@@ -8551,7 +8549,7 @@
 
  private 
 
- public :: aero_opt
+ public :: aero_opt, aero_opt_new
 
  contains
 
@@ -8740,4 +8738,676 @@
   enddo
 
  end subroutine aero_opt
- end module opt_gocart_mod
+!-----------------------------------
+       subroutine aero_opt_new                                    &
+!...................................
+
+!  ---  inputs:
+     &     ( sw_or_lw, dz,chem,rri,rhlay            &
+             ,extt,ssca,asympar,num_chem                          &
+             ,ids,ide, jds,jde, kds,kde                           &
+             ,ims,ime, jms,jme, kms,kme                           &
+             ,its,ite, jts,jte, kts,kte                           &
+!  ---  outputs:
+     &       ,aod,aerodp                                       &
+     &     )
+!  ==================================================================  !
+!                                                                      !
+!  aer_property_gocart maps prescribed gocart aerosol data set onto    !
+!  model grids, and compute aerosol optical properties for sw and      !
+!  lw radiations.                                                      !
+!                                                                      !
+!  inputs:                                                             !
+!     prsi    - pressure at interface              mb      IMAX*NLP1   !
+!     prsl    - layer mean pressure         (not used)     IMAX*NLAY   !
+!     prslk   - exner function=(p/p0)**rocp (not used)     IMAX*NLAY   !
+!     tvly    - layer virtual temperature   (not used)     IMAX*NLAY   !
+!     rhlay   - layer mean relative humidity               IMAX*NLAY   !
+!     dz      - layer thickness                    m       IMAX*NLAY   !
+!     hz      - level high                         m       IMAX*NLP1   !
+!     tracer  - aer tracer concentrations   (not used)  IMAX*NLAY*NTRAC!
+!     aerfld  - prescribed aer tracer mixing ratios   IMAX*NLAY*NTRCAER!
+!     alon, alat                                             IMAX      !
+!             - longitude and latitude of given points in degree       !
+!     slmsk   - sea/land mask (sea:0,land:1,sea-ice:2)       IMAX      !
+!     laersw,laerlw                                             1      !
+!             - logical flag for sw/lw aerosol calculations            !
+!     IMAX    - horizontal dimension of arrays                  1      !
+!     NLAY,NLP1-vertical dimensions of arrays                   1      !
+!                                                                      !
+!  outputs:                                                            !
+!     aerosw - aeros opt properties for sw      IMAX*NLAY*NBDSW*NF_AESW!
+!               (:,:,:,1): optical depth                               !
+!               (:,:,:,2): single scattering albedo                    !
+!               (:,:,:,3): asymmetry parameter                         !
+!     aerolw - aeros opt properties for lw      IMAX*NLAY*NBDLW*NF_AELW!
+!               (:,:,:,1): optical depth                               !
+!               (:,:,:,2): single scattering albedo                    !
+!               (:,:,:,3): asymmetry parameter                         !
+!     aerodp - vertically integrated aer-opt-depth         IMAX*NSPC+1 !
+!                                                                      !
+!  module parameters and constants:                                    !
+!     NSWBND  - total number of actual sw spectral bands computed      !
+!     NLWBND  - total number of actual lw spectral bands computed      !
+!     NSWLWBD - total number of sw+lw bands computed                   !
+!                                                                      !
+!  external module variables: (in physparam)                           !
+!     ivflip  - control flag for direction of vertical index           !
+!               =0: index from toa to surface                          !
+!               =1: index from surface to toa                          !
+!                                                                      !
+!  module variable: (set by subroutine aer_init)                       !
+!                                                                      !
+!  usage:    call aer_property_gocart                                  !
+!                                                                      !
+!  ==================================================================  !
+        USE gsd_chem_config,  only:  mwdry,mw_so4_aer,p_bc1,p_bc2,p_oc1,p_oc2,&
+              p_msa,p_dust_1,p_dust_2,p_dust_3,p_seas_1,p_seas_2,p_seas_3,&
+              p_sulf,p_p25,p_so2,p_seas_4,p_seas_5,p_p10,p_dust_4,p_dust_5
+!  ---  inputs:
+      INTEGER,    INTENT(IN   ) ::        ids,ide, jds,jde, kds,kde, &
+                                       ims,ime, jms,jme, kms,kme, &
+                                       its,ite, jts,jte, kts,kte,num_chem
+      character(len=2), intent(in) :: sw_or_lw   ! character index that determines sw or lw radiation
+
+      real (kind=kind_chem), dimension(ims:ime, kms:kme, jms:jme),intent(in) :: rhlay,dz,rri
+      real (kind=kind_chem), dimension(ims:ime, kms:kme, jms:jme, num_chem),intent(in):: chem
+
+
+!  ---  module control parameters set in subroutine "aer_init"
+!> number of actual bands for sw aerosols; calculated according to
+      integer, parameter :: NSPC = 5
+!! laswflg setting
+      integer, parameter :: NSWBND  = 14
+!> number of actual bands for lw aerosols; calculated according to
+!! lalwflg and lalw1bd settings
+      integer, parameter :: NLWBND  = 16
+!> total number of bands for sw+lw aerosols
+      integer, parameter :: NSWLWBD = NSWBND+NLWBND
+      integer, parameter :: NSWSTR = 1
+      integer, parameter :: NBDSW  = NSWBND
+      integer, parameter :: NBDLW  = NLWBND
+      real (kind=kind_chem), parameter :: f_zero = 0.0
+      real (kind=kind_chem), parameter :: f_one  = 1.0
+      integer, parameter :: NIAERCM = 102
+!> \name Starting/ending wavenumber for each of the SW bands
+      real (kind=kind_chem), dimension(NSWBND), parameter :: wvnum1 =   &
+     &      (/ 2600.0, 3250.0, 4000.0, 4650.0, 5150.0, 6150.0, 7700.0,  &
+     &         8050.0,12850.0,16000.0,22650.0,29000.0,38000.0,  820.0 /)
+      real (kind=kind_chem), dimension(NSWBND), parameter :: wvnum2 =   &
+     &      (/ 3250.0, 4000.0, 4650.0, 5150.0, 6150.0, 7700.0, 8050.0,  &
+     &        12850.0,16000.0,22650.0,29000.0,38000.0,50000.0, 2600.0 /)
+
+      !> num of bands for aer data (gocart)
+      integer, parameter :: KAERBNDD=61
+      integer, parameter :: KAERBNDI=56
+!> num of rh levels for rh-dep components
+      integer, parameter :: KRHLEV =36
+!> num of gocart rh indep aerosols
+      integer, parameter :: KCM1 = 5
+!> num of gocart rh dep aerosols
+      integer, parameter :: KCM2 = 10
+!> num of gocart aerosols
+      integer, parameter :: KCM  = KCM1 + KCM2
+      real (kind=kind_chem), dimension(KRHLEV) :: rhlev_grt             
+      data  rhlev_grt / .00, .05, .10, .15, .20, .25, .30, .35,      &
+     &      .40, .45, .50, .55, .60, .65, .70, .75, .80, .81, .82,      &
+     &      .83, .84, .85, .86, .87, .88, .89, .90, .91, .92, .93,      &
+     &      .94, .95, .96, .97, .98, .99 /
+
+      real (kind=kind_chem),allocatable,save,dimension(:,:) ::          &
+     &   extrhi_grt, extrhi_grt_550, scarhi_grt, ssarhi_grt, asyrhi_grt
+      real (kind=kind_chem),allocatable,save,dimension(:,:,:) ::        &
+     &   extrhd_grt, extrhd_grt_550, scarhd_grt, ssarhd_grt, asyrhd_grt   
+      real (kind=kind_chem), dimension(kaerbndd) :: wavelength
+      real (kind=kind_chem), dimension(kaerbndi) :: wavelength_du
+      real (kind=kind_chem), dimension(kaerbndi,kcm1)       ::          &
+     &       rhidext0_grt, rhidsca0_grt, rhidssa0_grt, rhidasy0_grt
+      real (kind=kind_chem), dimension(kaerbndd,krhlev,kcm2)::          &
+     &       rhdpext0_grt, rhdpsca0_grt, rhdpssa0_grt, rhdpasy0_grt
+!> gocart species
+      integer, parameter         :: num_gc = 5
+      character*2                :: gridcomp(num_gc)
+      integer, dimension (num_gc):: num_radius, radius_lower
+      integer, dimension (num_gc):: trc_to_aod
+
+      data gridcomp     /'DU', 'SS', 'SU', 'BC', 'OC'/
+      data num_radius   /5, 5, 1, 2, 2 /
+      data radius_lower /1, 6, 11, 12, 14 /
+      data trc_to_aod   /1, 5, 4, 2, 3/   ! dust, soot, waso, suso, ssam
+!  ---  outputs:
+      real (kind=kind_chem), dimension(its:ite, kts:kte,jts:jte,NBDSW), intent(out) ::         &
+     &     extt,ssca,asympar
+      real (kind=kind_chem), dimension(ims:ime, jms:jme)    , intent(out) :: aod
+      real (kind=kind_chem), dimension(ims:ime, jms:jme,5)  , intent(out) :: aerodp
+
+
+!  ---  locals:
+      real (kind=kind_chem), dimension(kts:kte,nswlwbd):: tauae,ssaae,asyae
+      real (kind=kind_chem), dimension(kts:kte,1):: tauae_550
+      real (kind=kind_chem), dimension(kts:kte,nspc)        :: spcodp
+
+      real (kind=kind_chem),dimension(kts:kte,kcm) ::  aerms
+      real (kind=kind_chem),dimension(kts:kte) :: dz1, rh1
+      real (kind=kind_chem) :: plv, tv, rho, convsulf
+      integer               :: i,j,ii, nn,m, m1,k,id550, i550,ib
+      integer               :: nv_aod, nc
+!
+!===e  ...  begin here
+!
+      if ( .not. allocated( extrhi_grt ) ) then
+        allocate ( extrhi_grt (       kcm1,nswlwbd) )
+        allocate ( extrhi_grt_550 (       kcm1,1) )
+        allocate ( scarhi_grt (       kcm1,nswlwbd) )
+        allocate ( ssarhi_grt (       kcm1,nswlwbd) )
+        allocate ( asyrhi_grt (       kcm1,nswlwbd) )
+        allocate ( extrhd_grt (krhlev,kcm2,nswlwbd) )
+        allocate ( extrhd_grt_550 (krhlev,kcm2,1) )
+        allocate ( scarhd_grt (krhlev,kcm2,nswlwbd) )
+        allocate ( ssarhd_grt (krhlev,kcm2,nswlwbd) )
+        allocate ( asyrhd_grt (krhlev,kcm2,nswlwbd) )
+      endif
+
+
+     call rd_gocart_luts
+        aod=0.0
+        aerodp=0.0
+
+        do i = its,ite
+        do j = jts,jte
+! --- initialize tauae, ssaae, asyae
+        do m = 1, NSWLWBD
+          do k = kts,kte
+           tauae(k,m) = f_zero
+           if (m==nv_aod) then
+           tauae_550(k,1) = f_zero
+           endif
+           ssaae(k,m) = f_one
+           asyae(k,m) = f_zero
+          enddo
+        enddo
+
+! --- set floor value for aerms (kg/m3)
+        do k = kts,kte
+        do m = 1, kcm
+           aerms(k,m) = 1.e-15
+        enddo
+        enddo
+
+        do k = kts,kte
+        do m = 1, nspc
+           spcodp(k,m) = f_zero
+        enddo
+        enddo
+
+        do k = kts,kte
+          rh1(k) = rhlay(i,k,j)          !
+          !dz1(k) = 1000.*dz (i,k)      ! thickness converted from km to m
+          dz1(k) = dz (i,k,j)      
+         ! plv = 100.*prsl(i,k)         ! convert pressure from mb to Pa
+         ! tv =  tvly(i,k)              ! virtual temp in K
+          rho = 1.0/rri (i,k,j)   ! air density in kg/m3
+          convsulf = rho * mw_so4_aer / mwdry  
+          do m = 1, KCM1
+             nn=p_dust_1+m-1
+           aerms(k,m) = 1.e-9* chem(i,k,j,nn)*rho  ! dry mass (kg/m3)
+          enddo
+          do m= 6, 10
+            nn=p_seas_1+m-5-1
+            aerms(k,m) = 1.e-9* chem(i,k,j,nn)*rho  ! dry mass (kg/m3)
+          enddo
+          do m= 11, 11
+            nn=p_sulf+m-10-1
+            aerms(k,m) = 1.e-6* chem(i,k,j,nn)* convsulf  ! dry mass (kg/m3)
+          enddo
+          do m= 12, 13
+            nn=p_bc1+m-11-1
+            aerms(k,m) = 1.e-9* chem(i,k,j,nn)*rho  ! dry mass (kg/m3)
+          enddo
+          do m= 14, 15
+            nn=p_oc1+m-13-1
+            aerms(k,m) = 1.e-9* chem(i,k,j,nn)*rho  ! dry mass (kg/m3)
+          enddo
+!
+! --- calculate sw/lw aerosol optical properties for the
+!     corresponding frequency bands
+          call aeropt
+!   ---   inputs:  (in-scope variables)
+!   ---   outputs: (in-scope variables)
+
+        enddo  ! end_do_k_loop
+
+! ----------------------------------------------------------------------
+
+! --- update aerosw and aerolw arrays
+       rad_select: select case(sw_or_lw)
+       case ('sw')  !shortwave radiation
+          do m = 1, NBDSW
+            do k = kts,kte
+              extt(i,k,j,m) = tauae(k,m)
+              ssca(i,k,j,m) = ssaae(k,m)
+              asympar(i,k,j,m) = asyae(k,m)
+            enddo
+          enddo
+
+! --- update diagnostic aod arrays
+          do k = kts,kte
+           aod(i,j) = aod(i,j) + tauae_550(k,1)
+
+          do m = 1, NSPC
+           aerodp(i,j,m) = aerodp(i,j,m)+spcodp(k,m)
+           !aod(i,j) = aod(i,j)+ spcodp(k,m)
+          enddo
+           !aod(i,j) = aod(i,j)+aerodp(i,j,m)
+          enddo
+
+       case ('lw')  !shortwave radiation
+
+          if ( NLWBND == 1 ) then
+            m1 = NSWBND + 1
+            do m = 1, NBDLW
+              do k = kts,kte
+                extt(i,k,j,m) = tauae(k,m1)
+                ssca(i,k,j,m) = ssaae(k,m1)
+                asympar(i,k,j,m) = asyae(k,m1)
+              enddo
+            enddo
+          else
+            do m = 1, NBDLW
+              m1 = NSWBND + m
+              do k = kts,kte
+                extt(i,k,j,m) = tauae(k,m1)
+                ssca(i,k,j,m) = ssaae(k,m1)
+                asympar(i,k,j,m) = asyae(k,m1)
+              enddo
+            enddo
+          endif
+         case default
+              stop 'MSG aero_opt: the option does not exist: sw_or_lw '
+         end select rad_select
+
+      enddo
+      enddo
+
+! =================
+      contains
+! =================
+
+!--------------------------------
+      subroutine aeropt
+!................................
+
+!  ---  inputs:  (in scope variables)
+!  ---  outputs: (in scope variables)
+
+!  ==================================================================  !
+!                                                                      !
+!  compute aerosols optical properties in NSWLWBD bands for gocart     !
+!  aerosol species                                                     !
+!                                                                      !
+!  input variables:                                                    !
+!     rh1    - relative humidity                     %     NLAY        !
+!     dz1    - layer thickness                       m     NLAY        !
+!     aerms  - aerosol mass concentration           kg/m3  NLAY*KCM    !
+!     NLAY   - vertical dimensions                   -     1           !
+!                                                                      !
+!  output variables:                                                   !
+!     tauae  - optical depth                         -     NLAY*NSWLWBD!
+!     ssaae  - single scattering albedo              -     NLAY*NSWLWBD!
+!     asyae  - asymmetry parameter                   -     NLAY*NSWLWBD!
+!     aerodp - vertically integrated aer-opt-depth   -     IMAX*NSPC+1 !
+!                                                                      !
+!  ==================================================================  !
+
+!  ---  inputs:
+!  ---  outputs:
+      real (kind=kind_chem), parameter :: wvn550 = 1.0e4/0.55
+!  ---  locals:
+      real (kind=kind_chem) :: drh0, drh1, rdrh
+      real (kind=kind_chem) :: cm, ext01, ext01_550, sca01,asy01,ssa01
+      real (kind=kind_chem) :: ext1, ext1_550, asy1, ssa1,sca1,tau_550
+      real (kind=kind_chem) :: sum_tau,sum_asy,sum_ssa,tau,asy,ssa
+      real (kind=kind_chem) :: sum_tau_550
+      integer               :: ih1, ih2, nbin, ib,mb, ntrc, ktrc
+! --- linear interp coeffs for rh-dep species
+        ih2 = 1
+        do while ( rh1(k) > rhlev_grt(ih2) )
+          ih2 = ih2 + 1
+          if ( ih2 > krhlev ) exit
+        enddo
+        ih1 = max( 1, ih2-1 )
+        ih2 = min( krhlev, ih2 )
+
+        drh0 = rhlev_grt(ih2) - rhlev_grt(ih1)
+        drh1 = rh1(k) - rhlev_grt(ih1)
+        if ( ih1 == ih2 ) then
+         rdrh = f_zero
+        else
+         rdrh = drh1 / drh0
+        endif
+
+        nv_aod = 1
+        do ib = 2, NSWBND
+          mb = ib + NSWSTR - 1
+          if ( wvnum2(mb) >= wvn550 .and. wvn550 >= wvnum1(mb) ) then
+            nv_aod = ib                  ! sw band number covering 550nmwavelenth
+          endif
+        enddo
+! --- compute optical properties for each spectral bands
+        !do ib = 1, nswlwbd
+
+           !sum_tau = f_zero
+        !   if (ib == nv_aod ) then
+           sum_tau_550 = f_zero
+           ext1_550 = f_zero
+         !  endif
+           !sum_ssa = f_zero
+           !sum_asy = f_zero
+
+         do nc = 1, kcm1
+         extrhi_grt_550(nc,1) = rhidext0_grt(id550,nc)
+         enddo
+      
+         do nc = 1, kcm2         !  ---  for rh dependent aerosol species
+         do nh = 1, krhlev
+         extrhd_grt_550(nh,nc,1) = rhdpext0_grt(i550,nh,nc)
+         enddo
+         enddo
+
+
+! --- determine tau, ssa, asy for dust aerosols
+           !ext1 = f_zero
+           !asy1 = f_zero
+           !sca1 = f_zero
+           !ssa1 = f_zero
+           !asy = f_zero
+           !ssa = f_zero
+           do m = 1, kcm1
+            cm =  max(aerms(k,m),0.0) * dz1(k)
+!            ext1 = ext1 + cm*extrhi_grt(m,ib)
+         !   if (ib == nv_aod) then
+            ext1_550 = ext1_550 + cm*extrhi_grt_550(m,1)
+         !  endif
+!            sca1 = sca1 + cm*scarhi_grt(m,ib)
+!            ssa1 = ssa1 + cm*extrhi_grt(m,ib) * ssarhi_grt(m,ib)
+!            asy1 = asy1 + cm*scarhi_grt(m,ib) * asyrhi_grt(m,ib)
+           enddo    ! m-loop
+!           tau = ext1
+!           if (ext1 > f_zero) ssa=min(f_one, ssa1/ext1)
+!           if (sca1 > f_zero) asy=min(f_one, asy1/sca1)
+
+! --- update aod from individual species
+        !   if ( ib==nv_aod ) then
+             tau_550 = ext1_550
+             spcodp(k,1) =  tau_550
+           sum_tau_550 = sum_tau_550 + tau_550
+        !   endif
+! --- update sum_tau, sum_ssa, sum_asy
+!           sum_tau = sum_tau + tau
+!           sum_ssa = sum_ssa + tau * ssa
+!           sum_asy = sum_asy + tau * ssa * asy
+
+! --- determine tau, ssa, asy for non-dust aerosols
+           do ntrc = 2, nspc
+!            ext1 = f_zero
+        !    if ( ib==nv_aod ) then
+            ext1_550 = f_zero
+        !    endif
+!            asy1 = f_zero
+!            sca1 = f_zero
+!            ssa1 = f_zero
+            ktrc = trc_to_aod(ntrc)
+            do nbin = 1, num_radius(ntrc)
+             m1 =  radius_lower(ntrc) + nbin - 1
+             m =   m1 - num_radius(1)                   ! exclude dust aerosols
+             cm =  max(aerms(k,m1),0.0) * dz1(k)
+!             ext01 = extrhd_grt(ih1,m,ib) +                             &
+!     &              rdrh * (extrhd_grt(ih2,m,ib)-extrhd_grt(ih1,m,ib))
+        !     if ( ib==nv_aod ) then
+             ext01_550 = extrhd_grt_550(ih1,m,1) +                      &
+     &          rdrh * (extrhd_grt_550(ih2,m,1)-extrhd_grt_550(ih1,m,1))
+        !     endif
+!             sca01 = scarhd_grt(ih1,m,ib) +                             &
+!     &              rdrh * (scarhd_grt(ih2,m,ib)-scarhd_grt(ih1,m,ib))
+!             ssa01 = ssarhd_grt(ih1,m,ib) +                             &
+!     &              rdrh * (ssarhd_grt(ih2,m,ib)-ssarhd_grt(ih1,m,ib))
+!             asy01 = asyrhd_grt(ih1,m,ib) +                             &
+!     &              rdrh * (asyrhd_grt(ih2,m,ib)-asyrhd_grt(ih1,m,ib))
+!             ext1 = ext1 + cm*ext01
+             !if ( ib==nv_aod ) then
+             ext1_550 = ext1_550 + cm*ext01_550
+             !endif
+!             sca1 = sca1 + cm*sca01
+!             ssa1 = ssa1 + cm*ext01 * ssa01
+!             asy1 = asy1 + cm*sca01 * asy01
+            enddo        ! end_do_nbin_loop
+!            tau = ext1
+!            if (ext1 > f_zero) ssa=min(f_one, ssa1/ext1)
+!            if (sca1 > f_zero) asy=min(f_one, asy1/sca1)
+! --- update aod from individual species
+            !if ( ib==nv_aod ) then
+            tau_550 = ext1_550
+            spcodp(k,ktrc) = tau_550
+            sum_tau_550 = sum_tau_550 + tau_550
+            !endif
+! --- update sum_tau, sum_ssa, sum_asy
+!            sum_tau = sum_tau + tau
+!            sum_ssa = sum_ssa + tau * ssa
+!            sum_asy = sum_asy + tau * ssa * asy
+           enddo        ! end_do_ntrc_loop
+
+! --- determine total tau, ssa, asy for aerosol mixture
+!           tauae(k,ib) = sum_tau
+           !if ( ib==nv_aod ) then
+           tauae_550(k,1) = sum_tau_550
+           !endif
+!           if (sum_tau > f_zero) ssaae(k,ib) = sum_ssa / sum_tau
+!           if (sum_ssa > f_zero) asyae(k,ib) = sum_asy / sum_ssa
+
+        !enddo         ! end_do_ib_loop
+!
+      return
+!................................
+      end subroutine aeropt
+!................................
+!-------read nasa_look_table------------------------------------------
+      subroutine rd_gocart_luts
+!.............................
+!  ---  inputs:  (in scope variables, module variables)
+!  ---  outputs: (in scope variables)
+
+! ==================================================================== !
+!                                                                      !
+! subprogram: rd_gocart_luts                                           !
+!   read GMAO pre-tabultaed aerosol optical data for dust, seasalt,    !
+!   sulfate, black carbon, and organic carbon aerosols                 !
+!                                                                      !
+!  major local variables:                                              !
+!   for handling spectral band structures                              !
+!     iendwv    - ending wvnum (cm**-1) for each band    kaerbndd      !
+!     iendwv_du - ending wvnum (cm**-1) for each band    kaerbndi      !
+!   for handling optical properties of rh independent species (kcm1)   !
+!     1=du001, 2=du002, 3=du003, 4=du004, 5=du005                      !
+!     rhidext0_grt - extinction coefficient          kaerbndi*kcm1     !
+!     rhidsca0_grt - scattering coefficient          kaerbndi*kcm1     !
+!     rhidssa0_grt - single scattering albedo        kaerbndi*kcm1     !
+!     rhidasy0_grt - asymmetry parameter             kaerbndi*kcm1     !
+!   for handling optical properties of rh ndependent species (kcm2)    !
+!     1=ss001, 2=ss002, 3=ss003, 4=ss004, 5=ss005, 6=so4,              !
+!     7=bcphobic, 8=bcphilic, 9=ocphobic, 10=ocphilic                  !
+!     rhdpext0_grt - extinction coefficient        kaerbndd*krhlev*kcm2!
+!     rhdpsca0_grt - scattering coefficient        kaerbndd*krhlev*kcm2!
+!     rhdpssa0_grt - single scattering albedo      kaerbndd*krhlev*kcm2!
+!     rhdpasy0_grt - asymmetry parameter           kaerbndd*krhlev*kcm2!
+!                                                                      !
+!  usage:    call rd_gocart_luts                                       !
+!                                                                      !
+!  ==================================================================  !
+!
+      implicit none
+
+!  ---  inputs: (none)
+!  ---  output: (none)
+
+!  ---  locals:
+       integer             :: iradius, ik, ibeg
+       integer, parameter  :: numspc = 5        ! # of aerosol species
+       !  ---  parameters and constants:
+! - input tabulated aerosol optical spectral data from GSFC
+       real, dimension(kaerbndd) :: lambda             ! wavelength (m) fornon-dust
+       real, dimension(kaerbndi) :: lambda_du          ! wavelength (m) for dust
+       real, dimension(krhlev)   :: rh                 ! relative humidity(fraction)
+       real, dimension(kaerbndd,krhlev,numspc) :: bext! extinction efficiency(m2/kg)
+       real, dimension(kaerbndd,krhlev,numspc) :: bsca! scattering efficiency(m2/kg)
+       real, dimension(kaerbndd,krhlev,numspc) :: g   ! asymmetry factor(dimensionless)
+       real, dimension(kaerbndi,krhlev,numspc) :: bext_du! extinction efficiency(m2/kg)
+       real, dimension(kaerbndi,krhlev,numspc) :: bsca_du! scattering efficiency(m2/kg)
+       real, dimension(kaerbndi,krhlev,numspc) :: g_du   ! asymmetry factor(dimensionless)
+!
+       logical           :: file_exist
+       character*50      :: fin, dummy
+
+! ---  read LUTs for dust aerosols
+       fin='optics_'//gridcomp(1)//'.dat'
+       inquire (file=trim(fin), exist=file_exist)
+       if ( file_exist ) then
+         close(niaercm)
+         open (unit=niaercm, file=fin, status='OLD')
+         rewind(niaercm)
+       else
+         print *,' Requested luts file ',trim(fin),' not found'
+         print *,' ** Stopped in rd_gocart_luts ** '
+         stop 1220
+       endif      ! end if_file_exist_block
+
+       iradius = 5
+! read lambda and compute mpwavelength (m)
+       read(niaercm,'(a40)') dummy
+       read(niaercm,*) (lambda_du(i), i=1, kaerbndi)
+! read rh, relative humidity (fraction)
+       read(niaercm,'(a40)') dummy
+       read(niaercm,*) (rh(i), i=1, krhlev)
+! read bext (m2 (kg dry mass)-1)
+       do k = 1, iradius
+         read(niaercm,'(a40)') dummy
+         do j=1, krhlev
+          read(niaercm,*) (bext_du(i,j,k), i=1,kaerbndi)
+         enddo
+       enddo
+! read bsca (m2 (kg dry mass)-1)
+       do k = 1, iradius
+         read(niaercm,'(a40)') dummy
+         do j=1, krhlev
+          read(niaercm,*) (bsca_du(i,j,k), i=1, kaerbndi)
+         enddo
+       enddo
+! read g (dimensionless)
+       do k = 1, iradius
+         read(niaercm,'(a40)') dummy
+         do j=1, krhlev
+          read(niaercm,*) (g_du(i,j,k), i=1, kaerbndi)
+         enddo
+       enddo
+
+! fill rhidext0 local arrays for dust aerosols (flip i-index)
+       do i = 1, kaerbndi         ! convert from m to micron
+          j = kaerbndi -i + 1     ! flip i-index
+          wavelength_du(j) = 1.e6 * lambda_du(i)
+           if (int(wavelength_du(j)*100) == 55) then
+              id550=j
+           endif
+       enddo
+       do k = 1, iradius
+          do i = 1, kaerbndi
+           ii = kaerbndi -i + 1
+           rhidext0_grt(ii,k) = bext_du(i,1,k)
+           rhidsca0_grt(ii,k) = bsca_du(i,1,k)
+           if ( bext_du(i,1,k) /= f_zero) then
+            rhidssa0_grt(ii,k) = bsca_du(i,1,k)/bext_du(i,1,k)
+           else
+            rhidssa0_grt(ii,k) = f_one
+           endif
+           rhidasy0_grt(ii,k) = g_du(i,1,k)
+          enddo
+       enddo
+
+! ---  read LUTs for non-dust aerosols
+       do ib = 2, num_gc       ! loop thru SS, SU, BC, OC
+        fin='optics_'//gridcomp(ib)//'.dat'
+        inquire (file=trim(fin), exist=file_exist)
+        if ( file_exist ) then
+          close(niaercm)
+          open (unit=niaercm, file=fin, status='OLD')
+          rewind(niaercm)
+        else
+          print *,' Requested luts file ',trim(fin),' not found'
+          print *,' ** Stopped in rd_gocart_luts ** '
+          stop 1222
+        endif      ! end if_file_exist_block
+
+        ibeg  =  radius_lower(ib) - kcm1
+        iradius = num_radius(ib)
+
+! read lambda and compute mpwavelength (m)
+        read(niaercm,'(a40)') dummy
+        read(niaercm,*) (lambda(i), i=1, kaerbndd)
+! read rh, relative humidity (fraction)
+        read(niaercm,'(a40)') dummy
+        read(niaercm,*) (rh(i), i=1, krhlev)
+! read bext
+        do k = 1, iradius
+         read(niaercm,'(a40)') dummy
+         do j=1, krhlev
+          read(niaercm,*) (bext(i,j,k), i=1,kaerbndd)
+         enddo
+        enddo
+! read bsca
+        do k = 1, iradius
+         read(niaercm,'(a40)') dummy
+         do j=1, krhlev
+          read(niaercm,*) (bsca(i,j,k), i=1, kaerbndd)
+         enddo
+        enddo
+! read g
+        do k = 1, iradius
+         read(niaercm,'(a40)') dummy
+         do j=1, krhlev
+          read(niaercm,*) (g(i,j,k), i=1, kaerbndd)
+         enddo
+        enddo
+
+! fill rhdpext0 local arrays for non-dust aerosols (flip i-index)
+        do i = 1, kaerbndd         ! convert from m to micron
+           j = kaerbndd -i + 1     ! flip i-index
+           wavelength(j) = 1.e6 * lambda(i)
+           if (int(wavelength(j)*100) == 55) then
+              i550=j
+           endif
+        enddo
+        do k = 1, iradius
+          ik = ibeg + k - 1
+          do i = 1, kaerbndd
+          ii = kaerbndd -i + 1
+          do j = 1, krhlev
+           rhdpext0_grt(ii,j,ik) = bext(i,j,k)
+           rhdpsca0_grt(ii,j,ik) = bsca(i,j,k)
+           if ( bext(i,j,k) /= f_zero) then
+            rhdpssa0_grt(ii,j,ik) = bsca(i,j,k)/bext(i,j,k)
+           else
+            rhdpssa0_grt(ii,j,ik) = f_one
+           endif
+           rhdpasy0_grt(ii,j,ik) = g(i,j,k)
+          enddo
+          enddo
+        enddo
+
+       enddo       !! ib-loop
+
+      return
+!...................................
+      end subroutine rd_gocart_luts
+!-----------------------------------
+      end subroutine aero_opt_new
+
+
+        end module opt_gocart_mod

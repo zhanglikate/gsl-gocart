@@ -27,9 +27,9 @@ CONTAINS
 
   subroutine gocart_seasalt_driver(ktau,dt,alt,t_phy,moist,u_phy,  &
          v_phy,chem,rho_phy,dz8w,u10,v10,ustar,p8w,tsk,            &
-         xland,xlat,xlong,area,g,emis_seas, &
+         xland,frocean,fraci,xlat,xlong,area,g,emis_seas, &
          seashelp,num_emis_seas,num_moist,num_chem,seas_opt,  &
-         random_factor,                          &
+         sstemisFlag,emission_scale, random_factor,                          &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
@@ -37,7 +37,8 @@ CONTAINS
      INTEGER,      INTENT(IN   ) :: ktau,num_emis_seas,num_moist,num_chem,   &
                                     ids,ide, jds,jde, kds,kde,               &
                                     ims,ime, jms,jme, kms,kme,               &
-                                    its,ite, jts,jte, kts,kte,seas_opt
+                                    its,ite, jts,jte, kts,kte,seas_opt,      &
+                                    sstemisFlag
      REAL(kind=kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),                &
            INTENT(IN ) ::                                   moist
      REAL(kind=kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
@@ -51,11 +52,15 @@ CONTAINS
                                                        v10,                  &
                                                        ustar,tsk,            &
                                                        xland,                &
+                                                       frocean,              &
+                                                       fraci,                &
                                                        xlat,                 &
                                                        xlong,area,           &
                                                        random_factor
      REAL(kind=kind_chem),  DIMENSION( ims:ime , jms:jme ),                        &
             INTENT(OUT   ) :: seashelp
+     REAL(kind=kind_chem),  DIMENSION( 5 ),                        &
+            INTENT(IN   ) :: emission_scale
      REAL(kind=kind_chem),  DIMENSION( ims:ime , kms:kme , jms:jme ),                        &
             INTENT(IN   ) ::                                                 &
                                                           alt,               &
@@ -82,6 +87,7 @@ CONTAINS
     integer :: ipr,i,j,imx,jmx,lmx,n,rc,chem_config
     integer,dimension (1,1) :: ilwi
     real(kind=kind_chem)               :: fsstemis, memissions, nemissions, tskin_c, ws10m
+    real(kind=kind_chem)               :: dummylon, fgridefficiency,deep_lakes_mask
     real(kind=kind_chem) :: delp
     real(kind=kind_chem), DIMENSION (number_ss_bins) :: tc,bems
     real(kind=kind_chem), dimension (1,1) ::w10m,airmas,tskin
@@ -107,6 +113,9 @@ CONTAINS
 
     one = 1.0
     emis_seas = 0.
+    print *, 'zlzlocean',maxval(frocean)
+    print *, 'zlzlice',maxval(fraci)
+
 
 !   select case (config % chem_opt)
     select case (chem_opt)
@@ -206,6 +215,22 @@ CONTAINS
             ! -- NGAC sea salt scheme
             do j = jts, jte
               do i = its, ite
+!Grid box efficiency to emission (fraction of sea water)
+              deep_lakes_mask=1.0
+              dummylon = xlong(i,j)
+          if( dummylon < 0.0 ) dummylon = dummylon + 360.0
+      ! The Great Lakes: lon = [91W,75W], lat = [40.5N, 50N]
+          if ((dummylon > 267.0) .and. &
+          (dummylon < 285.0) .and. &
+          (xlat(i,j) >  40.5) .and. &
+          (xlat(i,j) <  50.0)) deep_lakes_mask = 0.0
+
+       ! The Caspian Sea: lon = [45.0, 56], lat = 35, 48]
+          if ((dummylon >  45.0) .and. &
+          (dummylon <  56.0) .and. &
+          (xlat(i,j) >  35.0) .and. &
+          (xlat(i,j) <  48.0)) deep_lakes_mask = 0.0
+          fgridefficiency = min(max(0.,(frocean(i,j)-fraci (i,j))*deep_lakes_mask),1.)
 
                 ! -- only use sea salt scheme over water
                 if (xland(i,j) < 0.5) then
@@ -219,23 +244,29 @@ CONTAINS
                   end if
 
                   ! -- compute NGAC SST correction
-                  tskin_c  = tsk(i,j) - 273.15
-                  tskin_c  = min(max(tskin_c, -0.1), 36.0)    ! temperature range (0, 36) C
+                  if (sstemisFlag == 1) then          ! SST correction folowing Jaegle et al. 2011
+                    fsstemis = 0.0
+                    tskin_c  = tsk(i,j) - 273.15
+                    fsstemis = (0.3 + 0.1*tskin_c - 0.0076*tskin_c**2 + 0.00021*tskin_c**3)
+                    fsstemis = max(fsstemis, 0.0)
+                  else if (sstemisFlag == 2) then
+                    fsstemis = 0.0
+                    tskin_c  = tsk(i,j) - 273.15
+                    tskin_c  = min(max(tskin_c, -0.1), 36.0)    ! temperature range (0, 36) C
 
-                  fsstemis = -1.107211 &
-                             - tskin_c*(0.010681+0.002276*tskin_c) &
-                             + 60.288927/(40.0 - tskin_c)
-                  fsstemis = min(max(fsstemis, 0.0), 7.0)
+                    fsstemis = (-1.107211 -0.010681*tskin_c -0.002276*tskin_c**2 &
+                             + 60.288927*1.0/(40.0 - tskin_c))
+                    fsstemis = min(max(fsstemis, 0.0), 7.0)
+                  endif
 
+ 
                   do n = 1, number_ss_bins
                     memissions = 0.
                     nemissions = 0.
                     call SeasaltEmission( ra(n), rb(n), emission_scheme, &
                                           ws10m, ustar(i,j), memissions, nemissions, rc )
-!                    if (chem_rc_test((rc /= 0), msg="Error in NGAC sea salt scheme", &
-!                      file=__FILE__, line=__LINE__)) return
 
-                    bems(n) = emission_scale(n) * fsstemis * memissions * random_factor(i,j)
+                    bems(n) = emission_scale(n)*fgridefficiency * fsstemis * memissions * random_factor(i,j)
                     tc(n) = bems(n) * dt * g / delp
                   end do
 

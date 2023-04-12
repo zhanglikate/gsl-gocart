@@ -40,11 +40,12 @@ contains
 !>\section gsd_chem_seas_wrapper GSD Chemistry Scheme General Algorithm
 !> @{
     subroutine gsd_chem_seas_wrapper_run(im, kte, kme, ktau, dt, garea,          &
-                   land, u10m, v10m, ustar, rlat, rlon, tskin,                   &
+                   land, oceanfrac, fice, u10m, v10m, ustar, rlat, rlon, tskin,  &
                    pr3d, ph3d,prl3d, tk3d, us3d, vs3d, spechum,                  &
                    nseasalt,ntrac,ntss1,ntss2,ntss3,ntss4,ntss5,                 &
-                   gq0,qgrs,ssem,seas_opt_in, pert_scale_seas, emis_amp_seas,    &
-                   do_sppt_emis, sppt_wts, errmsg, errflg)
+                   gq0,qgrs,ssem,seas_opt_in, sstemisFlag,seas_emis_scale,       & 
+                   pert_scale_seas,       &
+                   emis_amp_seas, do_sppt_emis, sppt_wts, errmsg, errflg)
 
     implicit none
 
@@ -54,6 +55,7 @@ contains
 
     logical,        intent(in) :: do_sppt_emis
     real(kind=kind_phys), intent(in)    :: emis_amp_seas, pert_scale_seas
+    real(kind_phys), dimension(5), intent(in) :: seas_emis_scale
     real(kind_phys), optional, intent(in) :: sppt_wts(:,:)
 
 
@@ -61,14 +63,14 @@ contains
     integer, parameter :: ims=1,jms=1,jme=1, kms=1
     integer, parameter :: its=1,jts=1,jte=1, kts=1
 
-    integer, dimension(im), intent(in) :: land     
-    real(kind_phys), dimension(im), intent(in) :: u10m, v10m, ustar,               &
+    integer, dimension(im), intent(in) :: land
+    real(kind_phys), dimension(im), intent(in) :: u10m, v10m, ustar,oceanfrac, fice,   &
                 garea, rlat,rlon, tskin
     real(kind_phys), dimension(im,kme), intent(in) :: ph3d, pr3d
     real(kind_phys), dimension(im,kte), intent(in) :: prl3d, tk3d, us3d, vs3d, spechum
     real(kind_phys), dimension(im,kte,ntrac), intent(inout) :: gq0,qgrs
     real(kind_phys), dimension(im, nseasalt), intent(inout) :: ssem
-    integer,        intent(in) :: seas_opt_in
+    integer,        intent(in) :: seas_opt_in, sstemisFlag
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
@@ -76,7 +78,7 @@ contains
                      dz8w, p8w, rho_phy
 
     real(kind_phys), dimension(ims:im, jms:jme) :: u10, v10, ust, tsk,                 &
-                     xland, xlat, xlong, dxy
+                     xland, frocean,fraci,xlat, xlong, dxy
 
 !>- sea salt & chemistry variables
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:num_moist)  :: moist 
@@ -95,7 +97,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    seas_opt          = seas_opt_in
 
     ! -- set domain
     ide=im 
@@ -116,9 +117,9 @@ contains
 
 !>- get ready for chemistry run
     call gsd_chem_prep_seas(                                            &
-        u10m,v10m,ustar,land,garea,rlat,rlon,tskin,                     &
+        u10m,v10m,ustar,land,oceanfrac, fice, garea,rlat,rlon,tskin,    &
         pr3d,ph3d,tk3d,prl3d,us3d,vs3d,spechum,                         &
-        u10,v10,ust,tsk,xland,xlat,xlong,dxy,                           &
+        u10,v10,ust,tsk,xland,frocean,fraci,xlat,xlong,dxy,             &
         rri,t_phy,u_phy,v_phy,rho_phy,dz8w,p8w,                         &
         ntss1,ntss2,ntss3,ntss4,ntss5,ntrac,gq0,                        &
         num_chem, num_moist,ppm2ugkg,moist,chem,                        &
@@ -128,12 +129,12 @@ contains
 
 
     ! -- compute sea salt
-    if (seas_opt >= SEAS_OPT_DEFAULT) then
+    if (seas_opt_in >= SEAS_OPT_DEFAULT) then
     call gocart_seasalt_driver(ktau,dt,rri,t_phy,moist,                 &
         u_phy,v_phy,chem,rho_phy,dz8w,u10,v10,ust,p8w,tsk,              &
-        xland,xlat,xlong,dxy,g,emis_seas,                               &
-        seashelp,num_emis_seas,num_moist,num_chem,seas_opt,             &
-        random_factor,                                                  &
+        xland,frocean,fraci,xlat,xlong,dxy,g,emis_seas,                 &
+        seashelp,num_emis_seas,num_moist,num_chem,seas_opt_in,          &
+        sstemisFlag,seas_emis_scale, random_factor,                                                  &
         ids,ide, jds,jde, kds,kde,                                      &
         ims,ime, jms,jme, kms,kme,                                      &
         its,ite, jts,jte, kts,kte)
@@ -171,9 +172,9 @@ contains
 !> @}
 
    subroutine gsd_chem_prep_seas(                                      &
-        u10m,v10m,ustar,land,garea,rlat,rlon,ts2d,                     &
+        u10m,v10m,ustar,land,oceanfrac, fice,garea,rlat,rlon,ts2d,     &
         pr3d,ph3d,tk3d,prl3d,us3d,vs3d,spechum,                        &
-        u10,v10,ust,tsk,xland,xlat,xlong,dxy,                          &
+        u10,v10,ust,tsk,xland,frocean,fraci,xlat,xlong,dxy,            &
         rri,t_phy,u_phy,v_phy,rho_phy,dz8w,p8w,                        &
         ntss1,ntss2,ntss3,ntss4,ntss5,ntrac,gq0,                       &
         num_chem, num_moist,ppm2ugkg,moist,chem,                       &
@@ -186,7 +187,7 @@ contains
     !FV3 input variables
     integer, dimension(ims:ime), intent(in) :: land
     integer, intent(in) :: ntrac,ntss1,ntss2,ntss3,ntss4,ntss5
-    real(kind=kind_phys), dimension(ims:ime), intent(in) ::                & 
+    real(kind=kind_phys), dimension(ims:ime), intent(in) ::oceanfrac,fice, & 
          u10m, v10m, ustar, garea, rlat, rlon, ts2d
     real(kind=kind_phys), dimension(ims:ime, kms:kme), intent(in) :: pr3d,ph3d
     real(kind=kind_phys), dimension(ims:ime, kts:kte), intent(in) ::       &
@@ -205,7 +206,7 @@ contains
     real(kind_phys), dimension(ims:ime, kms:kme, jms:jme), intent(out) ::              & 
          rri, t_phy, u_phy, v_phy, rho_phy, dz8w, p8w
     real(kind_phys), dimension(ims:ime, jms:jme),          intent(out) ::              &
-         u10, v10, ust, tsk, xland, xlat, xlong, dxy
+         u10, v10, ust, tsk, xland, frocean,fraci, xlat, xlong, dxy
     real(kind_phys), dimension(ims:ime, kms:kme, jms:jme, num_moist), intent(out) :: moist
     real(kind_phys), dimension(ims:ime, kms:kme, jms:jme, num_chem),  intent(out) :: chem
 
@@ -227,6 +228,8 @@ contains
     ust            = 0._kind_phys
     tsk            = 0._kind_phys
     xland          = 0._kind_phys
+    frocean        = 0._kind_phys
+    fraci          = 0._kind_phys
     xlat           = 0._kind_phys
     xlong          = 0._kind_phys
     dxy            = 0._kind_phys
@@ -241,6 +244,8 @@ contains
      ust  (i,1)=ustar(i)
      dxy  (i,1)=garea(i)
      xland(i,1)=real(land(i))
+     frocean(i,1)=oceanfrac(i)
+     fraci(i,1)=fice(i)
      xlat (i,1)=rlat(i)*180./pi
      xlong(i,1)=rlon(i)*180./pi
     enddo

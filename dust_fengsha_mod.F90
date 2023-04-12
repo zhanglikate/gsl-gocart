@@ -17,7 +17,7 @@ module dust_fengsha_mod
 
 contains
 
-  subroutine gocart_dust_fengsha_driver(dt,ktau,              &
+  subroutine gocart_dust_fengsha_driver(dt,              &
        chem,rho_phy,smois,p8w,ssm,                       &
        isltyp,vegfra,snowh,xland,area,g,emis_dust,       &
        ust,znt,clay,sand,rdrag,uthr,                     &
@@ -54,7 +54,6 @@ contains
          p8w,             &
          rho_phy
     REAL(kind_chem), INTENT(IN) :: dt,g
-    integer, INTENT(IN) :: ktau
 
     ! Local variables
 

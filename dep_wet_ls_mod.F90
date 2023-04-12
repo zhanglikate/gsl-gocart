@@ -53,18 +53,20 @@ contains
         select case (chem_opt)
           case (CHEM_OPT_GOCART)
             alpha = 1.0
-            !alpha(p_so2   ) = 0.3
-            !alpha(p_msa   ) = 0.3
-            !alpha(p_dms   ) = 0.3
-            alpha(p_sulf) = 0.5
+            alpha(p_so2   ) = 0.0
+            alpha(p_msa   ) = 0.0
+            alpha(p_dms   ) = 0.0
+            alpha(p_sulf) = 0.3
             alpha(p_bc1) = 0.3
-            alpha(p_oc1) = 0.3
-            alpha(p_dust_1) = 0.3
-            alpha(p_dust_1) = 0.3
-            alpha(p_dust_2) = 0.3
-            alpha(p_dust_3) = 0.3
-            alpha(p_dust_4) = 0.3
-            alpha(p_dust_5) = 0.3
+            alpha(p_bc2) = 0.6
+            alpha(p_oc1) = 0.1
+            alpha(p_oc2) = 0.2
+            alpha(p_dust_1) = 0.1
+            alpha(p_dust_2) = 0.1
+            alpha(p_dust_3) = 0.1
+            alpha(p_dust_4) = 0.1
+            alpha(p_dust_5) = 0.1
+
           case (CHEM_OPT_GOCART_RACM)
             alpha = 1.0
 !            alpha(p_h2o2) = 0.5
@@ -169,7 +171,7 @@ contains
     !frc(:,:)=0.1
     !frc(:,:)=0.01 !lzhang
     ff=1.0
-    if (nv>=p_seas_1 .and. nv<=p_seas_5) ff=1.6
+    if (nv>=p_seas_1 .and. nv<=p_seas_5) ff=1.2
     do i=its,ite
     do j=jts,jte
      var_sum_clw(i,j)=0.
@@ -190,10 +192,9 @@ contains
         enddo
            if(var_sum(i,j).gt.1.e-10 .and. var_sum_clw(i,j).gt.1.e-10 ) then
    !        assuming that frc is onstant, it is my conversion factor 
-!       (just like in convec. parameterization
               frc(i,j)=rain_clw(i,j)/var_sum_clw(i,j)
 !    write(0,*)'frc ', frc(i,j),var_sum_clw(i,j),var_sum(i,j)
-              if (lat(i,j)<=-55.) then
+              if (lat(i,j)<=-65.) then
               frc(i,j)=max(1.e-6,min(frc(i,j),.005)*ff*10.)
               else
               frc(i,j)=max(1.e-6,min(frc(i,j),.005)*ff)
