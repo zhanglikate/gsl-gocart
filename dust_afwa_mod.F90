@@ -16,11 +16,11 @@ module dust_afwa_mod
 
 contains
 
-  subroutine gocart_dust_afwa_driver(ktau,dt,alt,t_phy,moist,u_phy,        &
-         v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod,                   &
-         ivgtyp,isltyp,vegfra,xland,xlat,xlong,gsw,area,g,emis_dust,       &
-         srce_dust,dustin,ust,znt,clay,sand,                               &
-         num_emis_dust,num_moist,num_chem,num_soil_layers,                 &
+  subroutine gocart_dust_afwa_driver(ktau,dt,        &
+         chem,rho_phy,smois,p8w,erod,                   &
+         isltyp,xland,xlat,xlong,area,g,emis_dust,       &
+         srce_dust,ust,znt,clay,sand,                    &
+         num_emis_dust,num_chem,num_soil_layers,                 &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
@@ -30,13 +30,10 @@ contains
                                   ids,ide, jds,jde, kds,kde,               &
                                   ims,ime, jms,jme, kms,kme,               &
                                   its,ite, jts,jte, kts,kte,               &
-                   num_emis_dust,num_moist,num_chem,num_soil_layers
+                   num_emis_dust,num_chem,num_soil_layers
    INTEGER,DIMENSION( ims:ime , jms:jme )                  ,               &
           INTENT(IN   ) ::                                                 &
-                                                     ivgtyp,               &
                                                      isltyp
-   REAL(kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),                &
-         INTENT(IN ) ::                              moist
    REAL(kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
          INTENT(INOUT ) ::                           chem
    REAL(kind_chem), DIMENSION( ims:ime, 1, jms:jme,num_emis_dust),                    &
@@ -51,23 +48,17 @@ contains
          INTENT(IN   ) ::                            erod
    REAL(kind_chem), DIMENSION( ims:ime , jms:jme )                    ,               &
          INTENT(IN   ) ::                                                  &
-                                                     u10,                  &
-                                                     v10,                  &
-                                                     gsw,                  &
-                                                     vegfra,               &
                                                      xland,                &
                                                      xlat,                 &
                                                      xlong,area,           &
                                                      ust,                  &
                                                      znt,                  &
                                                      clay,                 &
-                                                     sand,dustin
-   REAL(kind_chem), DIMENSION( ims:ime , kms:kme , jms:jme ),                         &
+                                                     sand
+   REAL(kind_chem), DIMENSION( ims:ime , kms:kme , jms:jme ),              &
          INTENT(IN   ) ::                                                  &
-                                                     alt,                  &
-                                                     t_phy,                &
-                                                     dz8w,p8w,             &
-                                                     u_phy,v_phy,rho_phy
+                                                     p8w,                  &
+                                                     rho_phy
   REAL(kind_chem), INTENT(IN   ) :: dt,g
 
 ! Local variables

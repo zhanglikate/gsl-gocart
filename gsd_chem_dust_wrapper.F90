@@ -162,7 +162,7 @@ contains
         u10m,v10m,ustar,land,garea,rlat,rlon,tskin,                      &
         pr3d,ph3d,phl3d,tk3d,prl3d,us3d,vs3d,spechum,                    &
         nsoil,smc,vegtype,soiltyp,sigmaf,dswsfc,zorl,                    &
-        snow_cplchm,dust_in,emi_in,                                         &
+        snow_cplchm,dust_in,emi_in,                                      &
         hf2d,pb2d,u10,v10,ust,tsk,xland,xlat,xlong,dxy,                  &
         rri,t_phy,u_phy,v_phy,p_phy,rho_phy,dz8w,p8w,t8w,z_at_w,         &
         ntdust1,ntdust2,ntdust3,ntdust4,ntdust5,                         &
@@ -178,13 +178,13 @@ contains
     !store_arrays = .false.
     select case (dust_opt)
       case (DUST_OPT_AFWA)
-        dust_alpha = afwa_alpha
-        dust_gamma = afwa_gamma
-        call gocart_dust_afwa_driver(ktau,dt,rri,t_phy,moist,u_phy,     &
-          v_phy,chem,rho_phy,dz8w,smois,u10,v10,p8w,erod,ivgtyp,isltyp, &
-          vegfrac,xland,xlat,xlong,gsw,dxy,g,emis_dust,srce_dust,       &
-          dusthelp,ust,znt,clayf,sandf,                                 &
-          num_emis_dust,num_moist,num_chem,nsoil,                       &
+        dust_alpha = dust_alpha_in 
+        dust_gamma = dust_gamma_in
+        call gocart_dust_afwa_driver(ktau,dt,                           &
+          chem,rho_phy,smois,p8w,erod,isltyp,                           &
+          xland,xlat,xlong,dxy,g,emis_dust,srce_dust,                   &
+          ust,znt,clayf,sandf,                                          &
+          num_emis_dust,num_chem,nsoil,                       &
           ids,ide, jds,jde, kds,kde,                                    &
           ims,ime, jms,jme, kms,kme,                                    &
           its,ite, jts,jte, kts,kte)

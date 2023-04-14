@@ -113,8 +113,6 @@ CONTAINS
 
     one = 1.0
     emis_seas = 0.
-    print *, 'zlzlocean',maxval(frocean)
-    print *, 'zlzlice',maxval(fraci)
 
 
 !   select case (config % chem_opt)
