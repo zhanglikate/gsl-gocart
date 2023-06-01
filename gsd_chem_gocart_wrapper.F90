@@ -115,7 +115,7 @@ contains
     chem_opt          = chem_opt_in
 
     gmt = real(idat(5))
-    julday = real(julian)                                       
+    julday = int(julian)                                       
 
     ! -- set domain
     ide=im 

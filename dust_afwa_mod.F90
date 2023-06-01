@@ -289,8 +289,10 @@ end subroutine gocart_dust_afwa_driver
 
   REAL(kind_chem), PARAMETER :: mmd_dust=3.4D-6  ! median mass diameter (m)
   REAL(kind_chem), PARAMETER :: gsd_dust=3.0     ! geom. std deviation
-  REAL(kind_chem), PARAMETER :: lambda=12.0D-6   ! crack propogation length (m)
-  REAL(kind_chem), PARAMETER :: cv=12.62D-6      ! normalization constant
+  REAL(kind_chem), PARAMETER :: lambda=8.0D-6   ! crack propogation length (m)
+  !REAL(kind_chem), PARAMETER :: lambda=12.0D-6   ! crack propogation length (m)
+  REAL(kind_chem), PARAMETER :: cv=6.83D-6      ! normalization constant
+  !REAL(kind_chem), PARAMETER :: cv=12.62D-6      ! normalization constant
 
 ! Calculate saltation surface area distribution from sand, silt, and clay
 ! mass fractions and saltation bin fraction. This will later become a 

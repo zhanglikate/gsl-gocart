@@ -125,7 +125,7 @@ contains
 
 
     gmt = real(idat(5))
-    julday = real(julian)                                       
+    julday = int(julian)                                       
 
     current_month=jdate(2)
 

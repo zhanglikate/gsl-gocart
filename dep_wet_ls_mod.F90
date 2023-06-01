@@ -61,11 +61,11 @@ contains
             alpha(p_bc2) = 0.6
             alpha(p_oc1) = 0.1
             alpha(p_oc2) = 0.2
-            alpha(p_dust_1) = 0.1
-            alpha(p_dust_2) = 0.1
-            alpha(p_dust_3) = 0.1
-            alpha(p_dust_4) = 0.1
-            alpha(p_dust_5) = 0.1
+            alpha(p_dust_1) = 0.3
+            alpha(p_dust_2) = 0.3
+            alpha(p_dust_3) = 0.3
+            alpha(p_dust_4) = 0.3
+            alpha(p_dust_5) = 0.3
 
           case (CHEM_OPT_GOCART_RACM)
             alpha = 1.0
