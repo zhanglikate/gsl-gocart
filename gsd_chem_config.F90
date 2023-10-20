@@ -76,6 +76,8 @@ module gsd_chem_config
   ! -- FV3 GFDL microphysics
   integer, parameter :: p_atm_shum = 1
   integer, parameter :: p_atm_cldq = 2
+  integer, parameter :: p_atm_cldi = 3
+  integer, parameter :: p_atm_cldii = 4
   integer, parameter :: p_atm_o3mr = 7
 
   integer :: numgas = 0

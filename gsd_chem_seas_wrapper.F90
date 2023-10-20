@@ -81,7 +81,6 @@ contains
                      xland, frocean,fraci,xlat, xlong, dxy
 
 !>- sea salt & chemistry variables
-    real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:num_moist)  :: moist 
     real(kind_phys), dimension(ims:im, kms:kme, jms:jme, 1:num_chem )  :: chem
     real(kind_phys), dimension(ims:im, 1, jms:jme, 1:num_emis_seas  ) :: emis_seas
     real(kind_phys), dimension(ims:im, jms:jme) :: seashelp
@@ -122,7 +121,7 @@ contains
         u10,v10,ust,tsk,xland,frocean,fraci,xlat,xlong,dxy,             &
         rri,t_phy,u_phy,v_phy,rho_phy,dz8w,p8w,                         &
         ntss1,ntss2,ntss3,ntss4,ntss5,ntrac,gq0,                        &
-        num_chem, num_moist,ppm2ugkg,moist,chem,                        &
+        num_chem, ppm2ugkg,chem,                                        &
         ids,ide, jds,jde, kds,kde,                                      &
         ims,ime, jms,jme, kms,kme,                                      &
         its,ite, jts,jte, kts,kte)
@@ -130,11 +129,11 @@ contains
 
     ! -- compute sea salt
     if (seas_opt_in >= SEAS_OPT_DEFAULT) then
-    call gocart_seasalt_driver(ktau,dt,rri,t_phy,moist,                 &
+    call gocart_seasalt_driver(ktau,dt,rri,t_phy,                       &
         u_phy,v_phy,chem,rho_phy,dz8w,u10,v10,ust,p8w,tsk,              &
         xland,frocean,fraci,xlat,xlong,dxy,g,emis_seas,                 &
-        seashelp,num_emis_seas,num_moist,num_chem,seas_opt_in,          &
-        sstemisFlag,seas_emis_scale, random_factor,                                                  &
+        seashelp,num_emis_seas,num_chem,seas_opt_in,                    &
+        sstemisFlag,seas_emis_scale, random_factor,                     &
         ids,ide, jds,jde, kds,kde,                                      &
         ims,ime, jms,jme, kms,kme,                                      &
         its,ite, jts,jte, kts,kte)
@@ -177,7 +176,7 @@ contains
         u10,v10,ust,tsk,xland,frocean,fraci,xlat,xlong,dxy,            &
         rri,t_phy,u_phy,v_phy,rho_phy,dz8w,p8w,                        &
         ntss1,ntss2,ntss3,ntss4,ntss5,ntrac,gq0,                       &
-        num_chem, num_moist,ppm2ugkg,moist,chem,                       &
+        num_chem, ppm2ugkg,chem,                                       &
         ids,ide, jds,jde, kds,kde,                                     &
         ims,ime, jms,jme, kms,kme,                                     &
         its,ite, jts,jte, kts,kte)
@@ -196,7 +195,7 @@ contains
 
 
     !GSD Chem variables
-    integer,intent(in) ::  num_chem, num_moist
+    integer,intent(in) ::  num_chem
     integer,intent(in) ::  ids,ide, jds,jde, kds,kde,                       &
                            ims,ime, jms,jme, kms,kme,                       &
                            its,ite, jts,jte, kts,kte
@@ -207,7 +206,6 @@ contains
          rri, t_phy, u_phy, v_phy, rho_phy, dz8w, p8w
     real(kind_phys), dimension(ims:ime, jms:jme),          intent(out) ::              &
          u10, v10, ust, tsk, xland, frocean,fraci, xlat, xlong, dxy
-    real(kind_phys), dimension(ims:ime, kms:kme, jms:jme, num_moist), intent(out) :: moist
     real(kind_phys), dimension(ims:ime, kms:kme, jms:jme, num_chem),  intent(out) :: chem
 
 
@@ -233,7 +231,6 @@ contains
     xlat           = 0._kind_phys
     xlong          = 0._kind_phys
     dxy            = 0._kind_phys
-    moist          = 0._kind_phys  
     chem           = 0._kind_phys
 
 
@@ -295,17 +292,6 @@ contains
           v_phy(i,k,j)=vs3d(ip,kkp)
           rho_phy(i,k,j)=p_phy(i,k,j)/(287.04*t_phy(i,k,j)*(1.+.608*spechum(ip,kkp)))
           rri(i,k,j)=1./rho_phy(i,k,j)
-          moist(i,k,j,:)=0.
-          moist(i,k,j,1)=gq0(ip,kkp,p_atm_shum)
-          if (t_phy(i,k,j) > 265.) then
-            moist(i,k,j,2)=gq0(ip,kkp,p_atm_cldq)
-            moist(i,k,j,3)=0.
-            if (moist(i,k,j,2) < 1.e-8) moist(i,k,j,2)=0.
-          else
-            moist(i,k,j,2)=0.
-            moist(i,k,j,3)=gq0(ip,kkp,p_atm_cldq)
-            if(moist(i,k,j,3) < 1.e-8)moist(i,k,j,3)=0.
-          endif
           !--
         enddo
       enddo

@@ -68,142 +68,6 @@ SUBROUTINE gocart_settling_driver(dt,t_phy,moist,                     &
        conver=1.e-9
        converi=1.e9
        lmx=kte-kts+1
-       select case (chem_opt)
-       case (304, 316, 317)
-!
-!  GOCART "very" light
-!
-       do j=jts,jte
-       do i=its,ite
-          bstl_dust(:)=0.
-          bstl_seas(:)=0.
-!
-! initialize met stuff
-!
-          kk=0
-          do k=kts,kte 
-          kk=kk+1
-          p_mid(1,1,kk)=.01*p_phy(i,kte-k+kts,j) 
-          delz(1,1,kk)=dz8w(i,kte-k+kts,j)  
-          airmas(1,1,kk)=-(p8w(i,k+1,j)-p8w(i,k,j))*area(i,j)/g
-          airden(1,1,kk)=rho_phy(i,k,j)
-          tmp(1,1,kk)=t_phy(i,k,j)
-          rh(1,1,kk) = .95
-          rh(1,1,kk) = MIN( .95, moist(i,k,j,p_qv) / &
-               (3.80*exp(17.27*(t_phy(i,k,j)-273.)/ &
-               (t_phy(i,k,j)-36.))/(.01*p_phy(i,k,j))))
-          rh(1,1,kk)=max(1.0D-1,rh(1,1,kk))
-          enddo
-!
-! dust first
-!
-          if((dust_opt == DUST_OPT_GOCART) .or. &
-               (dust_opt == DUST_OPT_AFWA) .or. &
-               (dust_opt == DUST_OPT_FENGSHA)) then
-          iseas=0
-          idust=1
-          maxdust(:)=0.
-          kk=0
-          do nv = p_dust_1,p_dust_2
-            kk=kk+1
-            do k=kts,kte
-              if(chem(i,k,j,nv).gt.maxdust(kk)) maxdust(kk)=chem(i,k,j,nv)
-            enddo
-          enddo
-          kk=0
-          do k=kts,kte 
-          kk=kk+1
-          if(k.eq.kts)then
-             dust(1,1,kk,1)=(chem(i,k,j,p_dust_1)-.31*dusthelp(i,j))*conver
-             dust(1,1,kk,2)=dusthelp(i,j)*conver
-             dust(1,1,kk,3)=(-.67*dusthelp(i,j)+chem(i,k,j,p_dust_2))*conver
-          else
-             dust(1,1,kk,1)=chem(i,k,j,p_dust_1)*conver
-             dust(1,1,kk,2)=1.d-30
-             dust(1,1,kk,3)=chem(i,k,j,p_dust_2)*conver
-          endif
-          dust(1,1,kk,4)=1.d-30
-          dust(1,1,kk,5)=1.d-30
-          enddo
-          call settling(1, 1, lmx, 5,g,dyn_visc, &
-                    dust, tmp, p_mid, delz, airmas, &
-                    den_dust, reff_dust, dt, bstl_dust, rh, idust, iseas,airden)
-          kk=0
-          do k=kts,kte-5
-             kk=kk+1
-             if(k.eq.kts)then
-                chem(i,k,j,p_dust_1)=max(max_default,(dust(1,1,kk,1)+.31*dust(1,1,kk,2))*converi)
-                chem(i,k,j,p_dust_2)=max(max_default,(.67*dust(1,1,kk,2)+dust(1,1,kk,3))*converi)
-             else
-                chem(i,k,j,p_dust_1)=max(max_default,dust(1,1,kk,1)*converi)
-                chem(i,k,j,p_dust_2)=max(max_default,dust(1,1,kk,3)*converi)
-             endif
-             chem(i,k,j,p_dust_1)=min(maxdust(1),chem(i,k,j,p_dust_1))
-             chem(i,k,j,p_dust_2)=min(maxdust(2),chem(i,k,j,p_dust_2))
-          enddo
-          do k=kte-4,kte
-            chem(i,k,j,p_dust_1)=0.
-            chem(i,k,j,p_dust_2)=0.
-          enddo
-          endif   ! dust_opt 
-!
-!
-!
-          if(seas_opt /= SEAS_OPT_NONE) then
-          iseas=1
-          idust=0
-          maxseas(:)=0.
-          kk=0
-          do nv = p_seas_1,p_seas_2
-             kk=kk+1
-             do k=kts,kte
-                 if(chem(i,k,j,nv).gt.maxseas(kk)) maxseas(kk)=chem(i,k,j,nv)
-             enddo
-          enddo
-          kk=0
-          do k=kts,kte 
-             kk=kk+1
-             if(k.eq.kts)then
-                sea_salt(1,1,kk,1)=(chem(i,k,j,p_seas_1)-.75*seashelp(i,j))*conver
-                sea_salt(1,1,kk,2)=seashelp(i,j)*conver
-                sea_salt(1,1,kk,3)=(chem(i,k,j,p_seas_2)-.25*seashelp(i,j))*conver
-             else
-                sea_salt(1,1,kk,1)=chem(i,k,j,p_seas_1)*conver
-                sea_salt(1,1,kk,2)=1.d-30
-                sea_salt(1,1,kk,3)=chem(i,k,j,p_seas_2)*conver
-             endif
-             sea_salt(1,1,kk,4)=1.d-30
-           enddo
-             call settling(1, 1, lmx, 4, g,dyn_visc,&
-                    sea_salt, tmp, p_mid, delz, airmas, &
-                    den_seas, reff_seas, dt, bstl_seas, rh, idust, iseas,airden)
-          kk=0
-          do k=kts,kte-5
-            kk=kk+1
-            if(k.eq.kts)then
-               chem(i,k,j,p_seas_1)=(sea_salt(1,1,kk,1)+.75*sea_salt(1,1,kk,2))*converi
-               chem(i,k,j,p_seas_2)=(.25*sea_salt(1,1,kk,2)+sea_salt(1,1,kk,3))*converi
-            else
-               chem(i,k,j,p_seas_1)=sea_salt(1,1,kk,1)*converi
-               chem(i,k,j,p_seas_2)=sea_salt(1,1,kk,3)*converi
-            endif
-            chem(i,k,j,p_seas_1)=min(maxseas(1),chem(i,k,j,p_seas_1))
-            chem(i,k,j,p_seas_2)=min(maxseas(2),chem(i,k,j,p_seas_2))
-          enddo
-          do k=kte-4,kte
-            chem(i,k,j,p_seas_1)=0.
-            chem(i,k,j,p_seas_2)=0.
-          enddo
-          endif ! seas_opt >= 1
-!
-!
-!
-       enddo    !enddo's for i,j
-       enddo    !
-!
-! else run with all GOCART variables, GOCART sort of HEAVY!
-!
-       case default
 !
        do j=jts,jte
        do i=its,ite
@@ -269,24 +133,6 @@ SUBROUTINE gocart_settling_driver(dt,t_phy,moist,                     &
              chem(i,k,j,p_dust_4)=dust(1,1,kk,4)*converi          ! ...
              chem(i,k,j,p_dust_5)=dust(1,1,kk,5)*converi          ! dust for size bin 5 (dust_opt 3: for all size bins) [ug/kg]
           enddo
-#if 0
-          kk=0
-          do k=kts,kte-4
-          kk=kk+1
-          chem(i,k,j,p_dust_1)=min(maxdust(1),dust(1,1,kk,1)*converi)
-          chem(i,k,j,p_dust_2)=min(maxdust(2),dust(1,1,kk,2)*converi)
-          chem(i,k,j,p_dust_3)=min(maxdust(3),dust(1,1,kk,3)*converi)
-          chem(i,k,j,p_dust_4)=min(maxdust(4),dust(1,1,kk,4)*converi)
-          chem(i,k,j,p_dust_5)=min(maxdust(5),dust(1,1,kk,5)*converi)
-          enddo
-          do k=kte-3,kte
-            chem(i,k,j,p_dust_1)=1.e-16
-            chem(i,k,j,p_dust_2)=1.e-16
-            chem(i,k,j,p_dust_3)=1.e-16
-            chem(i,k,j,p_dust_4)=1.e-16
-            chem(i,k,j,p_dust_5)=1.e-16
-          enddo
-#endif
           endif ! dust_opt 
 !
 !
@@ -327,24 +173,6 @@ SUBROUTINE gocart_settling_driver(dt,t_phy,moist,                     &
              chem(i,k,j,p_seas_5)=sea_salt(1,1,kk,5)*converi
           enddo
 
-#if 0          
-          kk=0
-          do k=kts,kte-4
-          kk=kk+1
-            chem(i,k,j,p_seas_1)=min(maxseas(1),sea_salt(1,1,kk,1)*converi)
-            chem(i,k,j,p_seas_2)=min(maxseas(2),sea_salt(1,1,kk,2)*converi)
-            chem(i,k,j,p_seas_3)=min(maxseas(3),sea_salt(1,1,kk,3)*converi)
-            chem(i,k,j,p_seas_4)=min(maxseas(4),sea_salt(1,1,kk,4)*converi)
-            chem(i,k,j,p_seas_5)=min(maxseas(5),sea_salt(1,1,kk,5)*converi)
-          enddo
-          do k=kte-3,kte
-            chem(i,k,j,p_seas_1)=0.
-            chem(i,k,j,p_seas_2)=0.
-            chem(i,k,j,p_seas_3)=0.
-            chem(i,k,j,p_seas_4)=0.
-            chem(i,k,j,p_seas_5)=0.
-          enddo
-#endif
 
           endif   ! end seasopt==1
 
@@ -362,7 +190,6 @@ SUBROUTINE gocart_settling_driver(dt,t_phy,moist,                     &
 !
 !
 !
-       end select
 !
 END SUBROUTINE gocart_settling_driver
 

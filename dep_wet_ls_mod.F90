@@ -11,8 +11,7 @@ module dep_wet_ls_mod
   implicit none
 
   ! -- large scale wet deposition scavenging factors
-  real(kind_chem), dimension(:), allocatable :: alpha
-
+  real(kind_chem), dimension(num_chem):: alpha
   private
 
   public :: dep_wet_ls_init
@@ -35,13 +34,11 @@ contains
     !rc = CHEM_RC_SUCCESS
 
     ! -- set aerosol wet scavenging coefficients
-    if (allocated(alpha)) then
-      deallocate(alpha, stat=ios)
-      !if (chem_rc_test((ios /= 0), msg="Failed to deallocate memory", &
-      !  file=__FILE__, line=__LINE__, rc=rc)) return
-    end if
+!    if (allocated(alpha)) then
+!      deallocate(alpha, stat=ios)
+!    end if
 
-    allocate(alpha(num_chem), stat=ios)
+!    allocate(alpha(num_chem), stat=ios)
     !if (chem_rc_test((ios /= 0), msg="Failed to allocate memory", &
     !  file=__FILE__, line=__LINE__, rc=rc)) return
 
@@ -53,19 +50,19 @@ contains
         select case (chem_opt)
           case (CHEM_OPT_GOCART)
             alpha = 1.0
-            alpha(p_so2   ) = 0.0
-            alpha(p_msa   ) = 0.0
-            alpha(p_dms   ) = 0.0
-            alpha(p_sulf) = 0.3
+            alpha(p_so2   ) = 0.3
+            alpha(p_msa   ) = 0.3
+            alpha(p_dms   ) = 0.3
+            alpha(p_sulf) = 0.6
             alpha(p_bc1) = 0.3
             alpha(p_bc2) = 0.6
             alpha(p_oc1) = 0.1
             alpha(p_oc2) = 0.2
-            alpha(p_dust_1) = 0.3
-            alpha(p_dust_2) = 0.3
-            alpha(p_dust_3) = 0.3
-            alpha(p_dust_4) = 0.3
-            alpha(p_dust_5) = 0.3
+            alpha(p_dust_1) = 0.2
+            alpha(p_dust_2) = 0.2
+            alpha(p_dust_3) = 0.2
+            alpha(p_dust_4) = 0.2
+            alpha(p_dust_5) = 0.2
 
           case (CHEM_OPT_GOCART_RACM)
             alpha = 1.0
@@ -121,10 +118,10 @@ contains
 
    ! -- replace first default wet scavenging coefficients with input values if
    ! available
-   if (any(wetdep_ls_alpha > 0._kind_chem)) then
-     n = min(size(alpha), size(wetdep_ls_alpha))
-     alpha(1:n) = real(wetdep_ls_alpha(1:n))
-   end if
+   !if (any(wetdep_ls_alpha > 0._kind_chem)) then
+   !  n = min(size(alpha), size(wetdep_ls_alpha))
+   !  alpha(1:n) = real(wetdep_ls_alpha(1:n))
+   !end if
 
   end subroutine dep_wet_ls_init
 
@@ -142,7 +139,7 @@ contains
                                    ims,ime, jms,jme, kms,kme,               &
                                    its,ite, jts,jte, kts,kte
     real(kind_chem), INTENT(IN ) :: dt
-    REAL(kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),                &
+    REAL(kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, 1:num_moist ),                &
           INTENT(IN ) ::                                   moist
     REAL(kind_chem),  DIMENSION( ims:ime , kms:kme , jms:jme ),                        &
            INTENT(IN   ) :: rho,dz8w,vvel
@@ -171,7 +168,7 @@ contains
     !frc(:,:)=0.1
     !frc(:,:)=0.01 !lzhang
     ff=1.0
-    if (nv>=p_seas_1 .and. nv<=p_seas_5) ff=1.2
+    if (nv>=p_seas_1 .and. nv<=p_seas_5) ff=2.0*10.
     do i=its,ite
     do j=jts,jte
      var_sum_clw(i,j)=0.
@@ -179,26 +176,25 @@ contains
      var_rmvl(i,:,j)=0.
      rain_clw(i,j)=0.
      frc(i,j)=0.
-     if(rain(i,j).gt.1.e-10)then
+     if(rain(i,j).gt.1.e-30)then
 ! convert rain back to rate
 !
         rain_clw(i,j)=rain(i,j)/dt
 ! total cloud water
 !
         do k=1,kte
-           dvar=max(0.,(moist(i,k,j,p_qc)+moist(i,k,j,p_qi)))
+           !dvar=max(0.,(moist(i,k,j,p_qc)+moist(i,k,j,p_qi)))
+           !dvar=max(0.,(moist(i,k,j,p_qc)+moist(i,k,j,p_qi))*rho(i,k,j)*vvel(i,k,j)*dz8w(i,k,j))
+           dvar=max(0.,(moist(i,k,j,p_qc))*rho(i,k,j)*vvel(i,k,j)*dz8w(i,k,j))
            var_sum_clw(i,j)=var_sum_clw(i,j)+dvar
            var_sum(i,j)=var_sum(i,j)+var(i,k,j,nv)*rho(i,k,j) !lzhang
         enddo
-           if(var_sum(i,j).gt.1.e-10 .and. var_sum_clw(i,j).gt.1.e-10 ) then
+           if(var_sum(i,j).gt.1.e-30 .and. var_sum_clw(i,j).gt.1.e-30 ) then
    !        assuming that frc is onstant, it is my conversion factor 
               frc(i,j)=rain_clw(i,j)/var_sum_clw(i,j)
-!    write(0,*)'frc ', frc(i,j),var_sum_clw(i,j),var_sum(i,j)
-              if (lat(i,j)<=-65.) then
-              frc(i,j)=max(1.e-6,min(frc(i,j),.005)*ff*10.)
-              else
-              frc(i,j)=max(1.e-6,min(frc(i,j),.005)*ff)
-              endif
+
+              !frc(i,j)=max(1.e-6,min(frc(i,j),.005)*ff)
+              frc(i,j)=max(1.e-6,min(frc(i,j),1.))
            endif
      endif
     enddo
@@ -208,9 +204,9 @@ contains
 !
     do i=its,ite
     do j=jts,jte
-     if(rain(i,j).gt.1.e-10 .and. var_sum(i,j).gt.1.e-10 .and. var_sum_clw(i,j).gt.1.e-10 ) then
+     if(rain(i,j).gt.1.e-30 .and. var_sum(i,j).gt.1.e-30 .and. var_sum_clw(i,j).gt.1.e-30 ) then
        do k=kts,kte
-        if(var(i,k,j,nv).gt.1.e-10 .and. (moist(i,k,j,p_qc)+moist(i,k,j,p_qi)).gt.1.e-10)then
+        if(var(i,k,j,nv).gt.1.e-30 .and. (moist(i,k,j,p_qc)+moist(i,k,j,p_qi)).gt.1.e-30)then
         factor = max(0.,frc(i,j)*rho(i,k,j)*dz8w(i,k,j)*vvel(i,k,j))
         dvar=max(0.,alpha(nv)*factor/(1+factor)*var(i,k,j,nv))
         dvar=min(dvar,var(i,k,j,nv))

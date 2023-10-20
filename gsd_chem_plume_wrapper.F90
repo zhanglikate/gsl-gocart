@@ -108,7 +108,6 @@ contains
     integer :: nbegin
     integer :: i, j, jp, k, kp, n
   
-
     errmsg = ''
     errflg = 0
 
@@ -162,7 +161,8 @@ contains
 
     ! Input to cellular automata
     if(doing_sgs_emis) then
-      do i=ids,ide
+      !do i=ids,ide
+      do i=its,ite
         ca_sgs_gbbepx_frp(i) = ca_sgs_gbbepx_frp_with_j(i,jds)
         vegtype_cpl(i) = vegtype(i)
       enddo

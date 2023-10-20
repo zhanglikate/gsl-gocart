@@ -172,7 +172,7 @@ contains
        chem,rho_phy,dz8w,exch_h,hfx,                              &
        ivgtyp,tsk,gsw,vegfrac,pbl,ust,znt,zmid,z_at_w,            &
        xland,xlat,xlong,h2oaj,h2oai,nu3,ac3,cor3,asulf,ahno3,     &
-       anh3,dry_fall,dep_vel_o3,g,                             &
+       anh3,dry_fall,dep_vel_o3,g,                                &
        e_co,kemit,snowh,numgas,                                   &
        num_chem,num_moist,                                        &
        ids,ide, jds,jde, kds,kde,                                 &

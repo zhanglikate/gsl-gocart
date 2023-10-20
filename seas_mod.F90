@@ -25,22 +25,20 @@ module seas_mod
 
 CONTAINS
 
-  subroutine gocart_seasalt_driver(ktau,dt,alt,t_phy,moist,u_phy,  &
+  subroutine gocart_seasalt_driver(ktau,dt,alt,t_phy,u_phy,  &
          v_phy,chem,rho_phy,dz8w,u10,v10,ustar,p8w,tsk,            &
          xland,frocean,fraci,xlat,xlong,area,g,emis_seas, &
-         seashelp,num_emis_seas,num_moist,num_chem,seas_opt,  &
+         seashelp,num_emis_seas,num_chem,seas_opt,  &
          sstemisFlag,emission_scale, random_factor,                          &
          ids,ide, jds,jde, kds,kde,                                        &
          ims,ime, jms,jme, kms,kme,                                        &
          its,ite, jts,jte, kts,kte                                         )
 
-     INTEGER,      INTENT(IN   ) :: ktau,num_emis_seas,num_moist,num_chem,   &
+     INTEGER,      INTENT(IN   ) :: ktau,num_emis_seas,num_chem,   &
                                     ids,ide, jds,jde, kds,kde,               &
                                     ims,ime, jms,jme, kms,kme,               &
                                     its,ite, jts,jte, kts,kte,seas_opt,      &
                                     sstemisFlag
-     REAL(kind=kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_moist ),                &
-           INTENT(IN ) ::                                   moist
      REAL(kind=kind_chem), DIMENSION( ims:ime, kms:kme, jms:jme, num_chem ),                 &
            INTENT(INOUT ) ::                                   chem
      REAL(kind=kind_chem), DIMENSION( ims:ime, 1, jms:jme,num_emis_seas),                    &
@@ -231,15 +229,15 @@ CONTAINS
           fgridefficiency = min(max(0.,(frocean(i,j)-fraci (i,j))*deep_lakes_mask),1.)
 
                 ! -- only use sea salt scheme over water
-                if (xland(i,j) < 0.5) then
+                !if (xland(i,j) < 0.5) then
 
                   ! -- compute auxiliary variables
                   delp = p8w(i,kts,j)-p8w(i,kts+1,j)
-                  if (dz8w(i,kts,j) < 12.) then
-                    ws10m = sqrt(u_phy(i,kts,j)*u_phy(i,kts,j)+v_phy(i,kts,j)*v_phy(i,kts,j))
-                  else
+                  !if (dz8w(i,kts,j) < 12.) then
+                  !  ws10m = sqrt(u_phy(i,kts,j)*u_phy(i,kts,j)+v_phy(i,kts,j)*v_phy(i,kts,j))
+                  !else
                     ws10m = sqrt(u10(i,j)*u10(i,j)+v10(i,j)*v10(i,j))
-                  end if
+                  !end if
 
                   ! -- compute NGAC SST correction
                   if (sstemisFlag == 1) then          ! SST correction folowing Jaegle et al. 2011
@@ -247,7 +245,7 @@ CONTAINS
                     tskin_c  = tsk(i,j) - 273.15
                     fsstemis = (0.3 + 0.1*tskin_c - 0.0076*tskin_c**2 + 0.00021*tskin_c**3)
                     fsstemis = max(fsstemis, 0.0)
-                  else if (sstemisFlag == 2) then
+                  else if (sstemisFlag == 2) then  ! GEOS5 SST correction
                     fsstemis = 0.0
                     tskin_c  = tsk(i,j) - 273.15
                     tskin_c  = min(max(tskin_c, -0.1), 36.0)    ! temperature range (0, 36) C
@@ -281,7 +279,7 @@ CONTAINS
                   emis_seas(i,1,j,p_eseas3) = bems(3)
                   emis_seas(i,1,j,p_eseas4) = bems(4)
                   emis_seas(i,1,j,p_eseas5) = bems(5)
-                end if
+                !end if !only water
 
               end do
             end do
