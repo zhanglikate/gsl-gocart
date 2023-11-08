@@ -1,6 +1,7 @@
 !>\file gsd_chem_rad_wrapper.F90
 !! This file is GSDChem radiation wrapper with CCPP coupling to FV3
 !! Haiqin.Li@noaa.gov 06/2020
+!! Kate.Zhang@noaa.gov 04/2023
 
  module gsd_chem_rad_wrapper
 

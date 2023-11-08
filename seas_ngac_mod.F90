@@ -3,7 +3,8 @@
 !         Adapted by NOAA/GSD/ESRL                                       !
 !-------------------------------------------------------------------------
 !BOP
-!
+!Kate.Zhang@noaa.gov updated it as NASA 2G-GOCART in Feb-2023.
+
 ! !MODULE:  seas_ngac_mod.F90 --- Calculate the Seasalt Emissions
 !
 ! !INTERFACE:
