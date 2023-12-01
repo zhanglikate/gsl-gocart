@@ -1,7 +1,7 @@
 !>\file gsd_chem_lsdep_wrapper.F90
 !! This file is GSDChem large-scale wet deposition wrapper with CCPP coupling to FV3
 !! Haiqin.Li@noaa.gov 06/2020
-!! Kate.Zhang@noaa.gov 09/2023
+!! Kate.Zhang@noaa.gov 11/2023
 
  module gsd_chem_lsdep_wrapper
 
@@ -25,9 +25,6 @@ contains
 !!
       subroutine gsd_chem_lsdep_wrapper_init()
 
-       !if (ktau==1) then
-       call dep_wet_ls_init()
-       !endif
       end subroutine gsd_chem_lsdep_wrapper_init
 
 !> \brief Brief description of the subroutine
