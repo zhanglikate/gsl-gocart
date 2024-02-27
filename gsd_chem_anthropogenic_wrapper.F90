@@ -213,7 +213,6 @@ contains
 
     real(kind_phys), dimension(ims:ime, kms:kme, jms:jme), intent(out) :: z_at_w
     real(kind_phys), dimension(ims:ime, jms:jme, num_ebu_in) :: emiss_ab
-    real(kind_phys), parameter :: frac_so2_ant = 1.0_kind_phys  ! antropogenic so2 fraction
 
 !>- volcanic stuff
     integer ::ko,k_final,k_initial,kl,kk4,curr_hours,curr_secs,curr_day,curr_mth,curr_yr
@@ -238,6 +237,7 @@ contains
     real(kind_phys), dimension(ims:ime, jms:jme) :: emiss_ash_mass
     real(kind_phys), dimension(ims:ime, jms:jme) :: emiss_ash_height
     real(kind_phys), dimension(ims:ime, jms:jme) :: emiss_ash_dt
+    real(kind_phys), dimension(ims:ime, jms:jme) :: frac_so2_ant   ! antropogenic so2 fraction
     real(kind_phys) ::  factor,factor2
 
 !    print*,'hli into volc'
@@ -259,6 +259,7 @@ contains
     num_emis_voll  =0._kind_phys
     so2_mass       = 0._kind_phys
     vert_mass_dist = 0._kind_phys
+    frac_so2_ant   = 1._kind_phys
 
     lon_vol=-10000
     lat_vol=-10000
@@ -398,6 +399,23 @@ contains
       emiss_ab(i,j,p_e_pm_25)=emi_in(i,4)*random_factor(i,j)
       emiss_ab(i,j,p_e_so2)  =emi_in(i,5)*random_factor(i,j)
       emiss_ab(i,j,p_e_pm_10)=emi_in(i,6)*random_factor(i,j)
+      if( xlong(i,j) < 0.0 ) xlong(i,j) = xlong(i,j) + 360.0
+      ! The Eastern China: lon = [100E,123e], lat = [20N, 45N]
+          if ((xlong(i,j) >= 90.0) .and. &
+          (xlong(i,j) <= 120.0) .and. &
+          (xlat(i,j) >=  20.0) .and. &
+          (xlat(i,j) <=  32.0)) frac_so2_ant (i,j) = 1.2
+
+          if ((xlong(i,j) > 95.0) .and. &
+          (xlong(i,j) <= 118.0) .and. &
+          (xlat(i,j) >   32.0) .and. &
+          (xlat(i,j) <=  45.0)) frac_so2_ant (i,j) = 2.0
+
+      ! The middle africa: lon = [20E,60E], lat = [10N, 35N]
+          if ((xlong(i,j) >= 20.0) .and. &
+          (xlong(i,j) <= 80.0) .and. &
+          (xlat(i,j) >=  20.0) .and. &
+          (xlat(i,j) <=  35.0)) frac_so2_ant (i,j) = 0.3
      enddo
     enddo
 
@@ -409,7 +427,7 @@ contains
           emis_ant(i,k,j,p_e_bc)=emiss_ab(i,j,p_e_bc)
           emis_ant(i,k,j,p_e_oc)=emiss_ab(i,j,p_e_oc)
           emis_ant(i,k,j,p_e_sulf)=emiss_ab(i,j,p_e_sulf)
-          emis_ant(i,k,j,p_e_so2)=frac_so2_ant * emiss_ab(i,j,p_e_so2)
+          emis_ant(i,k,j,p_e_so2)=frac_so2_ant (i,j) * emiss_ab(i,j,p_e_so2)
           emis_ant(i,k,j,p_e_dms)= 0. !emiss_ab(j,p_e_dms)
           emis_ant(i,k,j,p_e_pm_25)=emiss_ab(i,j,p_e_pm_25)
           emis_ant(i,k,j,p_e_pm_10)=emiss_ab(i,j,p_e_pm_10)
